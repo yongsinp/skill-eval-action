@@ -48,6 +48,10 @@ inputs:
     description: 'Write results to GitHub Step Summary'
     required: false
     default: 'true'
+  baseline:
+    description: 'Run evals without skill instructions for baseline comparison'
+    required: false
+    default: 'false'
   max-retries:
     description: 'Max retry attempts per API call on timeout/error'
     required: false
@@ -114,6 +118,7 @@ runs:
         RETRY_DELAY: ${{ inputs.retry-delay }}
         MODEL: ${{ inputs.model }}
         WRITE_SUMMARY: ${{ inputs.write-summary }}
+        BASELINE: ${{ inputs.baseline }}
 
     - name: Generate eval viewer
       if: inputs.upload-viewer == 'true'

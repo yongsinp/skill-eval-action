@@ -31,6 +31,7 @@ PASS_THRESHOLD = float(os.environ.get("PASS_THRESHOLD", "80"))
 MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "3"))
 RETRY_DELAY = int(os.environ.get("RETRY_DELAY", "10"))
 MODEL = os.environ.get("MODEL", "").strip()
+BASELINE = os.environ.get("BASELINE", "false").lower() == "true"
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +280,9 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.write_text(file_spec.get("content", ""))
 
-    # Inject skill content for positive trigger cases
+    # Inject skill content for positive trigger cases (skipped in baseline mode)
     raw_prompt = case.get("prompt", "")
-    if skill_content and case.get("expect_skill", True):
+    if not BASELINE and skill_content and case.get("expect_skill", True):
         prompt = (
             f"Follow these skill instructions when responding:\n\n"
             f"<skill-instructions>\n{skill_content}\n</skill-instructions>\n\n"

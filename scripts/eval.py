@@ -503,7 +503,7 @@ def main() -> None:
 
     # Write step summary
     github_summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if github_summary:
+    if github_summary and os.environ.get("WRITE_SUMMARY", "true").lower() != "false":
         with open(github_summary, "a") as f:
             status_emoji = "✅" if pass_rate >= PASS_THRESHOLD else "❌"
             f.write(f"## {status_emoji} Skill Eval: {SKILL_NAME}\n\n")

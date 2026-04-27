@@ -44,6 +44,10 @@ inputs:
     description: 'Claude model to use for eval and grading (e.g. claude-sonnet-4-6)'
     required: false
     default: ''
+  write-summary:
+    description: 'Write results to GitHub Step Summary'
+    required: false
+    default: 'true'
   max-retries:
     description: 'Max retry attempts per API call on timeout/error'
     required: false
@@ -109,6 +113,7 @@ runs:
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
         MODEL: ${{ inputs.model }}
+        WRITE_SUMMARY: ${{ inputs.write-summary }}
 
     - name: Generate eval viewer
       if: inputs.upload-viewer == 'true'

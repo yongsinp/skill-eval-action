@@ -40,6 +40,10 @@ inputs:
     description: 'Node.js version for claude CLI installation'
     required: false
     default: '22'
+  model:
+    description: 'Claude model to use for eval and grading (e.g. claude-sonnet-4-6)'
+    required: false
+    default: ''
   max-retries:
     description: 'Max retry attempts per API call on timeout/error'
     required: false
@@ -104,6 +108,7 @@ runs:
         WORKSPACE: ${{ runner.temp }}/skill-eval/${{ inputs.skill-name }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        MODEL: ${{ inputs.model }}
 
     - name: Generate eval viewer
       if: inputs.upload-viewer == 'true'

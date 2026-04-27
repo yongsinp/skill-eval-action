@@ -30,6 +30,7 @@ EVAL_TIMEOUT = int(os.environ.get("EVAL_TIMEOUT", "120"))
 PASS_THRESHOLD = float(os.environ.get("PASS_THRESHOLD", "80"))
 MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "3"))
 RETRY_DELAY = int(os.environ.get("RETRY_DELAY", "10"))
+MODEL = os.environ.get("MODEL", "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +201,10 @@ def _run_claude(prompt: str, work_dir: Path, timeout: int) -> subprocess.Complet
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = subprocess.run(
-                ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"],
+                [
+                    "claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
+                    *(["--model", MODEL] if MODEL else []),
+                ],
                 capture_output=True, text=True,
                 timeout=timeout, cwd=str(work_dir), env=env,
             )

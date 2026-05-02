@@ -25,7 +25,7 @@ A GitHub Action that evaluates [Claude Code skills](https://resources.anthropic.
   with:
     skill-name: tf-guide
     skill-path: ./skills/tf-guide
-    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    api-key: ${{ secrets.API_KEY }}
 ```
 
 ### Multiple skills (static matrix)
@@ -61,7 +61,7 @@ jobs:
         with:
           skill-name: ${{ matrix.skill }}
           skill-path: skills/${{ matrix.skill }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          api-key: ${{ secrets.API_KEY }}
           pass-threshold: '80'
 ```
 
@@ -118,7 +118,7 @@ jobs:
         with:
           skill-name: ${{ matrix.skill }}
           skill-path: skills/${{ matrix.skill }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          api-key: ${{ secrets.API_KEY }}
           pass-threshold: '80'
 ```
 
@@ -161,7 +161,7 @@ jobs:
         with:
           skill-name: ${{ matrix.skill }}
           skill-path: skills/${{ matrix.skill }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          api-key: ${{ secrets.API_KEY }}
 ```
 
 ## Parallelism
@@ -175,7 +175,7 @@ The action evaluates **one skill per invocation**. Parallelism comes from GitHub
 | Changed only | Varies | Filter by git diff |
 | Sequential | 1 | No matrix (not recommended for >3 skills) |
 
-Within a single skill, eval cases run sequentially to avoid Anthropic API rate limits.
+Within a single skill, eval cases run sequentially to avoid API rate limits.
 
 ## Inputs
 
@@ -183,13 +183,13 @@ Within a single skill, eval cases run sequentially to avoid Anthropic API rate l
 |-------|:--------:|---------|-------------|
 | `skill-name` | Yes | - | Name of the skill to evaluate |
 | `skill-path` | Yes | - | Path to the skill directory (must contain `SKILL.md` and `evals/`) |
-| `anthropic-api-key` | Yes | - | Anthropic API key for the `claude` CLI |
+| `api-key` | Yes | - | API key for the LLM provider |
 | `pass-threshold` | No | `80` | Minimum pass rate (0-100) to succeed |
 | `timeout` | No | `120` | Timeout per eval case in seconds |
 | `post-comment` | No | `true` | Post results as a PR comment |
 | `github-token` | No | `${{ github.token }}` | Token for PR comments |
 | `upload-viewer` | No | `true` | Upload eval-viewer HTML as an artifact |
-| `node-version` | No | `22` | Node.js version for claude CLI installation |
+| `node-version` | No | `22` | Node.js version for copilot CLI installation |
 | `max-retries` | No | `3` | Max retry attempts per API call on timeout/error |
 | `retry-delay` | No | `10` | Base delay between retries in seconds (multiplied by attempt number) |
 
@@ -205,12 +205,12 @@ Within a single skill, eval cases run sequentially to avoid Anthropic API rate l
 ## How it works
 
 ```
-eval YAML -> claude -p (execute) -> claude -p (grade) -> summary.json -> PR comment + artifact
+eval YAML -> copilot -p (execute) -> copilot -p (grade) -> summary.json -> PR comment + artifact
 ```
 
 1. **Discovers** eval YAML files in `<skill-path>/evals/`
-2. **Executes** each case via `claude -p` with skill content injected
-3. **Grades** each response against criteria via a separate `claude -p` call
+2. **Executes** each case via `copilot -p` with skill content injected
+3. **Grades** each response against criteria via a separate `copilot -p` call
 4. **Aggregates** results and writes a GitHub Actions step summary
 5. **Posts** a PR comment with pass/fail table and failed criteria details
 6. **Uploads** an interactive eval viewer as an artifact
@@ -267,7 +267,7 @@ Each eval case makes **2 API calls** (execute + grade). A skill with 5 cases = 1
 
 ## Requirements
 
-- `ANTHROPIC_API_KEY` as a repository secret
+- `API_KEY` as a repository secret
 - Eval YAML files in the skill's `evals/` directory
 - Skills must follow the [Agent Skills](https://agentskills.io/specification) format
 

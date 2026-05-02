@@ -13,8 +13,8 @@ inputs:
   skill-path:
     description: 'Path to the skill directory (containing SKILL.md and evals/)'
     required: true
-  anthropic-api-key:
-    description: 'Anthropic API key for claude CLI'
+  api-key:
+    description: 'API key for the LLM provider'
     required: true
   pass-threshold:
     description: 'Minimum pass rate (0-100) to succeed'
@@ -37,11 +37,11 @@ inputs:
     required: false
     default: 'true'
   node-version:
-    description: 'Node.js version for claude CLI installation'
+    description: 'Node.js version for copilot CLI installation'
     required: false
     default: '22'
   model:
-    description: 'Claude model to use for eval and grading (e.g. claude-sonnet-4-6)'
+    description: 'Model to use for eval and grading (e.g. claude-sonnet-4-6)'
     required: false
     default: ''
   write-summary:
@@ -81,9 +81,9 @@ runs:
     # Mask the API key before anything else
     - name: Mask secrets
       shell: bash
-      run: echo "::add-mask::$ANTHROPIC_API_KEY"
+      run: echo "::add-mask::$API_KEY"
       env:
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        API_KEY: ${{ inputs.api-key }}
 
     - name: Setup Node.js
       uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
@@ -99,8 +99,8 @@ runs:
       shell: bash
       run: |
         pip install pyyaml --quiet
-        npm install -g @anthropic-ai/claude-code --quiet 2>/dev/null || true
-        claude --version || { echo "::error::Failed to install claude CLI"; exit 1; }
+        npm install -g @github/copilot --quiet 2>/dev/null || true
+        copilot --version || { echo "::error::Failed to install copilot CLI"; exit 1; }
 
     - name: Run eval pipeline
       id: eval
@@ -112,7 +112,7 @@ runs:
         SKILL_PATH: ${{ inputs.skill-path }}
         EVAL_TIMEOUT: ${{ inputs.timeout }}
         PASS_THRESHOLD: ${{ inputs.pass-threshold }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        API_KEY: ${{ inputs.api-key }}
         WORKSPACE: ${{ runner.temp }}/skill-eval/${{ inputs.skill-name }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}

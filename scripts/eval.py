@@ -195,15 +195,15 @@ def validate_cases(cases: list[dict]) -> list[str]:
 # Execution
 # ---------------------------------------------------------------------------
 
-def _run_claude(prompt: str, work_dir: Path, timeout: int) -> subprocess.CompletedProcess:
-    """Run claude -p with retries on timeout/error."""
+def _run_copilot(prompt: str, work_dir: Path, timeout: int) -> subprocess.CompletedProcess:
+    """Run copilot -p with retries on timeout/error."""
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = subprocess.run(
                 [
-                    "claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
+                    "copilot", "-p", prompt,
                     *(["--model", MODEL] if MODEL else []),
                 ],
                 capture_output=True, text=True,
@@ -227,45 +227,13 @@ def _run_claude(prompt: str, work_dir: Path, timeout: int) -> subprocess.Complet
     return result  # type: ignore
 
 
-def _parse_stream_json(stdout: str) -> dict:
-    """Parse claude stream-json output into structured data."""
-    response_text = ""
-    total_tokens = 0
-    cost_usd = 0.0
-    skill_triggered = False
-
-    for line in stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if event.get("type") == "assistant":
-            for content in event.get("message", {}).get("content", []):
-                if content.get("type") == "text":
-                    response_text += content.get("text", "")
-                elif content.get("type") == "tool_use":
-                    if content.get("name") == "Skill" and SKILL_NAME in json.dumps(content.get("input", {})):
-                        skill_triggered = True
-        elif event.get("type") == "result":
-            usage = event.get("usage", {})
-            total_tokens = (
-                usage.get("input_tokens", 0)
-                + usage.get("output_tokens", 0)
-                + usage.get("cache_creation_input_tokens", 0)
-                + usage.get("cache_read_input_tokens", 0)
-            )
-            cost_usd = event.get("total_cost_usd", 0)
-            if not response_text:
-                response_text = event.get("result", "")
-
+def _parse_output(stdout: str) -> dict:
+    """Parse copilot -p output. Copilot CLI writes the response directly to stdout as plain text."""
     return {
-        "response_text": response_text,
-        "total_tokens": total_tokens,
-        "cost_usd": cost_usd,
-        "skill_triggered": skill_triggered,
+        "response_text": stdout.strip(),
+        "total_tokens": 0,
+        "cost_usd": 0.0,
+        "skill_triggered": False,  # not detectable with Copilot CLI plain-text output
     }
 
 
@@ -294,9 +262,9 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
     start = time.time()
 
     try:
-        result = _run_claude(prompt, work_dir, case.get("timeout", EVAL_TIMEOUT))
+        result = _run_copilot(prompt, work_dir, case.get("timeout", EVAL_TIMEOUT))
         elapsed = time.time() - start
-        parsed = _parse_stream_json(result.stdout)
+        parsed = _parse_output(result.stdout)
 
         # Write outputs
         (case_dir / "response.md").write_text(parsed["response_text"])
@@ -360,7 +328,7 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = subprocess.run(
-                ["claude", "-p", grader_prompt, "--output-format", "text"],
+                ["copilot", "-p", grader_prompt],
                 capture_output=True, text=True, timeout=60, env=env,
             )
             output = result.stdout.strip()

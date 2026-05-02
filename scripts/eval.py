@@ -331,6 +331,8 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
                 ["copilot", "-p", grader_prompt],
                 capture_output=True, text=True, timeout=60, env=env,
             )
+            if result.returncode != 0:
+                raise ValueError(f"exit {result.returncode}: {(result.stderr or result.stdout).strip()[:200]}")
             output = result.stdout.strip()
             if "```json" in output:
                 output = output.split("```json")[1].split("```")[0].strip()
@@ -341,10 +343,10 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
             (case_dir / "grading.json").write_text(json.dumps(grading, indent=2) + "\n")
             return grading
 
-        except (json.JSONDecodeError, subprocess.TimeoutExpired) as e:
+        except (json.JSONDecodeError, subprocess.TimeoutExpired, ValueError) as e:
             if attempt < MAX_RETRIES:
                 delay = RETRY_DELAY * attempt
-                print(f"  ::warning::Grading attempt {attempt}/{MAX_RETRIES} failed ({e.__class__.__name__}), retrying in {delay}s...")
+                print(f"  ::warning::Grading attempt {attempt}/{MAX_RETRIES} failed ({e.__class__.__name__}: {e}), retrying in {delay}s...")
                 time.sleep(delay)
                 continue
             # Final attempt failed

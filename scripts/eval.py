@@ -203,7 +203,7 @@ def _run_copilot(prompt: str, work_dir: Path, timeout: int) -> subprocess.Comple
         try:
             result = subprocess.run(
                 [
-                    "copilot", "-p", prompt, "--output-format", "json", "--stream", "on",
+                    "copilot", "-p", prompt,
                     *(["--model", MODEL] if MODEL else []),
                 ],
                 capture_output=True, text=True,
@@ -328,7 +328,7 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = subprocess.run(
-                ["copilot", "-p", grader_prompt, "--output-format", "text"],
+                ["copilot", "-p", grader_prompt],
                 capture_output=True, text=True, timeout=60, env=env,
             )
             if result.returncode != 0:

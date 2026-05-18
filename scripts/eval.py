@@ -188,12 +188,6 @@ def validate_cases(cases: list[dict]) -> list[str]:
         if to is not None and not isinstance(to, (int, float)):
             errors.append(f"{prefix}: 'timeout' must be a number, got {type(to).__name__}")
 
-        # reasoning_effort — optional, one of the known levels
-        _VALID_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
-        re_val = case.get("reasoning_effort")
-        if re_val is not None and re_val not in _VALID_REASONING_EFFORTS:
-            errors.append(f"{prefix}: 'reasoning_effort' must be one of {sorted(_VALID_REASONING_EFFORTS)}, got {re_val!r}")
-
     return errors
 
 
@@ -201,7 +195,7 @@ def validate_cases(cases: list[dict]) -> list[str]:
 # Execution
 # ---------------------------------------------------------------------------
 
-def _run_copilot(prompt: str, work_dir: Path, timeout: int, reasoning_effort: str | None = None) -> subprocess.CompletedProcess:
+def _run_copilot(prompt: str, work_dir: Path, timeout: int) -> subprocess.CompletedProcess:
     """Run copilot -p with retries on timeout/error."""
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
@@ -211,7 +205,6 @@ def _run_copilot(prompt: str, work_dir: Path, timeout: int, reasoning_effort: st
                 [
                     "copilot", "-p", prompt, "--output-format", "json", "--stream", "on",
                     *(["--model", MODEL] if MODEL else []),
-                    *(["--reasoning-effort", reasoning_effort] if reasoning_effort else []),
                 ],
                 capture_output=True, text=True,
                 timeout=timeout, cwd=str(work_dir), env=env,
@@ -269,7 +262,7 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
     start = time.time()
 
     try:
-        result = _run_copilot(prompt, work_dir, case.get("timeout", EVAL_TIMEOUT), case.get("reasoning_effort"))
+        result = _run_copilot(prompt, work_dir, case.get("timeout", EVAL_TIMEOUT))
         elapsed = time.time() - start
         parsed = _parse_output(result.stdout)
 

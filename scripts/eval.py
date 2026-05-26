@@ -33,6 +33,17 @@ RETRY_DELAY = int(os.environ.get("RETRY_DELAY", "10"))
 MODEL = os.environ.get("MODEL", "").strip()
 BASELINE = os.environ.get("BASELINE", "false").lower() == "true"
 
+_RATE_LIMIT_RE = re.compile(r"rate.?limit|429|too many requests|too many tokens|quota.?exceeded", re.IGNORECASE)
+
+
+class RateLimitError(Exception):
+    pass
+
+
+def _check_rate_limited(text: str) -> None:
+    if _RATE_LIMIT_RE.search(text):
+        raise RateLimitError(text[:300])
+
 
 # ---------------------------------------------------------------------------
 # YAML helpers
@@ -209,7 +220,7 @@ def _run_copilot(prompt: str, work_dir: Path, timeout: int) -> subprocess.Comple
                 capture_output=True, text=True,
                 timeout=timeout, cwd=str(work_dir), env=env,
             )
-            # Check for empty response (API error, rate limit)
+            _check_rate_limited(result.stdout + result.stderr)
             if result.returncode != 0 and attempt < MAX_RETRIES:
                 delay = RETRY_DELAY * attempt
                 print(f"  ::warning::Attempt {attempt}/{MAX_RETRIES} failed (exit {result.returncode}), retrying in {delay}s...")
@@ -286,6 +297,8 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
             "skill_triggered": parsed["skill_triggered"],
             "response": parsed["response_text"],
         }
+    except RateLimitError:
+        raise
     except subprocess.TimeoutExpired:
         return {"name": case["name"], "status": "timeout", "elapsed": round(time.time() - start, 1), "tokens": 0, "response": ""}
     except Exception as e:
@@ -331,6 +344,7 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
                 ["copilot", "-p", grader_prompt],
                 capture_output=True, text=True, timeout=60, env=env,
             )
+            _check_rate_limited(result.stdout + result.stderr)
             if result.returncode != 0:
                 raise ValueError(f"exit {result.returncode}: {(result.stderr or result.stdout).strip()[:200]}")
             output = result.stdout.strip()
@@ -403,7 +417,12 @@ def main() -> None:
         case_slug = case["name"].replace(" ", "-").lower()
         case_dir = WORKSPACE / case_slug
         print(f"::group::Execute [{i+1}/{len(cases)}]: {case['name']}")
-        er = execute_case(case, skill_content, case_dir)
+        try:
+            er = execute_case(case, skill_content, case_dir)
+        except RateLimitError as e:
+            print("::endgroup::")
+            print(f"::error::Rate limited on case '{case['name']}' — aborting: {e}")
+            sys.exit(1)
         exec_results.append(er)
         print(f"Status: {er['status']} | Time: {er['elapsed']}s | Tokens: {er['tokens']}")
         print("::endgroup::")
@@ -424,7 +443,12 @@ def main() -> None:
             gradings.append(fallback)
             print(f"Skipped (execution {er['status']})")
         else:
-            gr = grade_case(case, er, case_dir)
+            try:
+                gr = grade_case(case, er, case_dir)
+            except RateLimitError as e:
+                print("::endgroup::")
+                print(f"::error::Rate limited while grading '{case['name']}' — aborting: {e}")
+                sys.exit(1)
             gradings.append(gr)
             s = gr.get("summary", {})
             print(f"Result: {s.get('passed', 0)}/{s.get('total', 0)} passed")

@@ -61,7 +61,7 @@ inputs:
     required: false
     default: '10'
   allowed-paths:
-    description: 'Comma-separated additional directories Copilot may access via --add-dir'
+    description: 'Comma-separated additional directories Copilot may access via --add-dir (in addition to skill scripts/references/assets when present)'
     required: false
     default: ''
 

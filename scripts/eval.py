@@ -49,7 +49,18 @@ def _check_rate_limited(text: str) -> None:
 
 def _copilot_permission_args() -> list[str]:
     args = ["--allow-all-tools"]
-    for path in COPILOT_ALLOWED_PATHS:
+    default_dirs = [SKILL_PATH / name for name in ("scripts", "references", "assets")]
+    allowed_dirs: list[str] = []
+    seen: set[str] = set()
+
+    for path in [*(str(p) for p in default_dirs if p.exists()), *COPILOT_ALLOWED_PATHS]:
+        key = str(Path(path).resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        allowed_dirs.append(path)
+
+    for path in allowed_dirs:
         args.extend(["--add-dir", path])
     return args
 

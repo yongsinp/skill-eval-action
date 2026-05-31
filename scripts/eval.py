@@ -276,11 +276,11 @@ def _parse_output(stdout: str) -> dict:
     }
 
 
-def _materialize_case_files(case: dict, io_dir: Path) -> None:
-    """Materialize `files:` entries into io_dir.
+def _materialize_case_files(case: dict, workspace_dir: Path) -> None:
+    """Materialize `files:` entries into workspace_dir.
 
-    - If `content` is provided, write it to `io_dir/<path>`.
-    - Otherwise copy from an existing source path into `io_dir/<path>`.
+    - If `content` is provided, write it to `workspace_dir/<path>`.
+    - Otherwise copy from an existing source path into `workspace_dir/<path>`.
       Source lookup order:
       1) `<SKILL_PATH>/<path>`
       2) `<eval_yaml_dir>/<path>`
@@ -288,7 +288,7 @@ def _materialize_case_files(case: dict, io_dir: Path) -> None:
     eval_yaml_dir = Path(case.get("_source", ".")).parent
     for file_spec in case.get("files", []):
         rel_path = file_spec["path"].strip()
-        dest = io_dir / rel_path
+        dest = workspace_dir / rel_path
 
         if "content" in file_spec:
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -310,13 +310,13 @@ def _materialize_case_files(case: dict, io_dir: Path) -> None:
             shutil.copy2(source, dest)
 
 
-def execute_case(case: dict, skill_content: str, io_dir: Path, case_dir: Path) -> dict:
+def execute_case(case: dict, skill_content: str, workspace_dir: Path, case_dir: Path) -> dict:
     """Run a single eval case via copilot -p with retries."""
     case_dir.mkdir(parents=True, exist_ok=True)
-    io_dir.mkdir(parents=True, exist_ok=True)
+    workspace_dir.mkdir(parents=True, exist_ok=True)
 
-    # Materialize case files into isolated per-case IO workspace
-    _materialize_case_files(case, io_dir)
+    # Materialize case files into isolated per-case workspace
+    _materialize_case_files(case, workspace_dir)
 
     # Inject skill content for positive trigger cases (skipped in baseline mode)
     raw_prompt = case.get("prompt", "")
@@ -332,7 +332,7 @@ def execute_case(case: dict, skill_content: str, io_dir: Path, case_dir: Path) -
     start = time.time()
 
     try:
-        result = _run_copilot(prompt, io_dir, case.get("timeout", EVAL_TIMEOUT))
+        result = _run_copilot(prompt, workspace_dir, case.get("timeout", EVAL_TIMEOUT))
         elapsed = time.time() - start
         parsed = _parse_output(result.stdout)
 
@@ -368,7 +368,7 @@ def execute_case(case: dict, skill_content: str, io_dir: Path, case_dir: Path) -
 # Grading
 # ---------------------------------------------------------------------------
 
-def grade_case(case: dict, exec_result: dict, io_dir: Path, case_dir: Path) -> dict:
+def grade_case(case: dict, exec_result: dict, workspace_dir: Path, case_dir: Path) -> dict:
     """Grade an executed eval case via copilot -p with retries."""
     criteria = case.get("criteria", [])
     criteria_text = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(criteria))
@@ -400,7 +400,7 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
         try:
             result = subprocess.run(
                 grade_command,
-                capture_output=True, text=True, timeout=60, cwd=str(io_dir), env=env,
+                capture_output=True, text=True, timeout=60, cwd=str(workspace_dir), env=env,
             )
             _check_rate_limited(result.stdout + result.stderr)
             if result.returncode != 0:
@@ -474,10 +474,10 @@ def main() -> None:
     for i, case in enumerate(cases):
         case_slug = case["name"].replace(" ", "-").lower()
         case_dir = WORKSPACE / case_slug
-        io_dir = case_dir / "io"
+        workspace_dir = case_dir / "workspace"
         print(f"::group::Execute [{i+1}/{len(cases)}]: {case['name']}")
         try:
-            er = execute_case(case, skill_content, io_dir, case_dir)
+            er = execute_case(case, skill_content, workspace_dir, case_dir)
         except RateLimitError as e:
             print("::endgroup::")
             print(f"::error::Rate limited on case '{case['name']}' — aborting: {e}")
@@ -491,7 +491,7 @@ def main() -> None:
     for i, (case, er) in enumerate(zip(cases, exec_results)):
         case_slug = case["name"].replace(" ", "-").lower()
         case_dir = WORKSPACE / case_slug
-        io_dir = case_dir / "io"
+        workspace_dir = case_dir / "workspace"
         print(f"::group::Grade [{i+1}/{len(cases)}]: {case['name']}")
 
         if er["status"] != "completed":
@@ -504,7 +504,7 @@ def main() -> None:
             print(f"Skipped (execution {er['status']})")
         else:
             try:
-                gr = grade_case(case, er, io_dir, case_dir)
+                gr = grade_case(case, er, workspace_dir, case_dir)
             except RateLimitError as e:
                 print("::endgroup::")
                 print(f"::error::Rate limited while grading '{case['name']}' — aborting: {e}")

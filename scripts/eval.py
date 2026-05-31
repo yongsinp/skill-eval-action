@@ -23,7 +23,9 @@ import yaml
 # ---------------------------------------------------------------------------
 
 SKILL_NAME = os.environ["SKILL_NAME"]
-SKILL_PATH = Path(os.environ["SKILL_PATH"])
+REPO_ROOT = Path(os.environ.get("GITHUB_WORKSPACE", Path.cwd())).resolve()
+_skill_path = Path(os.environ["SKILL_PATH"])
+SKILL_PATH = (_skill_path if _skill_path.is_absolute() else REPO_ROOT / _skill_path).resolve()
 WORKSPACE = Path(os.environ["WORKSPACE"])
 EVAL_TIMEOUT = int(os.environ.get("EVAL_TIMEOUT", "120"))
 PASS_THRESHOLD = float(os.environ.get("PASS_THRESHOLD", "80"))
@@ -53,12 +55,15 @@ def _copilot_permission_args() -> list[str]:
     allowed_dirs: list[str] = []
     seen: set[str] = set()
 
-    for path in [*(str(p) for p in default_dirs if p.exists()), *COPILOT_ALLOWED_PATHS]:
-        key = str(Path(path).resolve())
+    for path in [*(str(p.resolve()) for p in default_dirs if p.exists()), *COPILOT_ALLOWED_PATHS]:
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            candidate = (REPO_ROOT / candidate).resolve()
+        key = str(candidate)
         if key in seen:
             continue
         seen.add(key)
-        allowed_dirs.append(path)
+        allowed_dirs.append(key)
 
     for path in allowed_dirs:
         args.extend(["--add-dir", path])

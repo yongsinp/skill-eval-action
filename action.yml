@@ -60,6 +60,10 @@ inputs:
     description: 'Base delay between retries in seconds (multiplied by attempt number)'
     required: false
     default: '10'
+  allowed-paths:
+    description: 'Comma-separated additional directories Copilot may access via --add-dir'
+    required: false
+    default: ''
 
 outputs:
   pass-rate:
@@ -116,6 +120,7 @@ runs:
         WORKSPACE: ${{ runner.temp }}/skill-eval/${{ inputs.skill-name }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        COPILOT_ALLOWED_PATHS: ${{ inputs.allowed-paths }}
         MODEL: ${{ inputs.model }}
         WRITE_SUMMARY: ${{ inputs.write-summary }}
         BASELINE: ${{ inputs.baseline }}

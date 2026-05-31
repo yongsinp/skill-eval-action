@@ -192,6 +192,7 @@ Within a single skill, eval cases run sequentially to avoid API rate limits.
 | `node-version` | No | `22` | Node.js version for copilot CLI installation |
 | `max-retries` | No | `3` | Max retry attempts per API call on timeout/error |
 | `retry-delay` | No | `10` | Base delay between retries in seconds (multiplied by attempt number) |
+| `allowed-paths` | No | `` | Comma-separated additional directories to allow via `copilot --add-dir` |
 
 ## Outputs
 
@@ -205,16 +206,18 @@ Within a single skill, eval cases run sequentially to avoid API rate limits.
 ## How it works
 
 ```
-eval YAML -> copilot -p (execute) -> copilot -p (grade) -> summary.json -> PR comment + artifact
+eval YAML -> copilot -p --allow-all-tools [--add-dir ...] (execute) -> copilot -p --allow-all-tools [--add-dir ...] (grade) -> summary.json -> PR comment + artifact
 ```
 
 1. **Discovers** eval YAML files in `<skill-path>/evals/`
-2. **Executes** each case via `copilot -p` with skill content injected
-3. **Grades** each response against criteria via a separate `copilot -p` call
+2. **Executes** each case via `copilot -p --allow-all-tools` with skill content injected
+3. **Grades** each response against criteria via a separate `copilot -p --allow-all-tools` call
 4. **Aggregates** results and writes a GitHub Actions step summary
 5. **Posts** a PR comment with pass/fail table and failed criteria details
 6. **Uploads** an interactive eval viewer as an artifact
 7. **Fails** the step if pass rate is below threshold
+
+When `allowed-paths` is provided, each comma-separated path is passed to Copilot as `--add-dir <path>` during both execute and grade calls.
 
 ## Eval case format
 

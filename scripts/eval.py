@@ -32,6 +32,9 @@ MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "3"))
 RETRY_DELAY = int(os.environ.get("RETRY_DELAY", "10"))
 MODEL = os.environ.get("MODEL", "").strip()
 BASELINE = os.environ.get("BASELINE", "false").lower() == "true"
+COPILOT_ALLOWED_PATHS = [
+    p.strip() for p in os.environ.get("COPILOT_ALLOWED_PATHS", "").split(",") if p.strip()
+]
 
 _RATE_LIMIT_RE = re.compile(r"rate.?limit|429|too many requests|too many tokens|quota.?exceeded", re.IGNORECASE)
 
@@ -43,6 +46,13 @@ class RateLimitError(Exception):
 def _check_rate_limited(text: str) -> None:
     if _RATE_LIMIT_RE.search(text):
         raise RateLimitError(text[:300])
+
+
+def _copilot_permission_args() -> list[str]:
+    args = ["--allow-all-tools"]
+    for path in COPILOT_ALLOWED_PATHS:
+        args.extend(["--add-dir", path])
+    return args
 
 
 # ---------------------------------------------------------------------------
@@ -209,14 +219,18 @@ def validate_cases(cases: list[dict]) -> list[str]:
 def _run_copilot(prompt: str, work_dir: Path, timeout: int) -> subprocess.CompletedProcess:
     """Run copilot -p with retries on timeout/error."""
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    command = [
+        "copilot",
+        "-p",
+        prompt,
+        *(["--model", MODEL] if MODEL else []),
+        *_copilot_permission_args(),
+    ]
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = subprocess.run(
-                [
-                    "copilot", "-p", prompt,
-                    *(["--model", MODEL] if MODEL else []),
-                ],
+                command,
                 capture_output=True, text=True,
                 timeout=timeout, cwd=str(work_dir), env=env,
             )
@@ -249,7 +263,7 @@ def _parse_output(stdout: str) -> dict:
 
 
 def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
-    """Run a single eval case via claude -p with retries."""
+    """Run a single eval case via copilot -p with retries."""
     case_dir.mkdir(parents=True, exist_ok=True)
 
     # Create temp dir with any specified files
@@ -312,7 +326,7 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 def grade_case(case: dict, exec_result: dict, case_dir: Path) -> dict:
-    """Grade an executed eval case via claude -p with retries."""
+    """Grade an executed eval case via copilot -p with retries."""
     criteria = case.get("criteria", [])
     criteria_text = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(criteria))
     response = exec_result.get("response", "(No response captured)")
@@ -337,11 +351,12 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
 }}"""
 
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    grade_command = ["copilot", "-p", grader_prompt, *_copilot_permission_args()]
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = subprocess.run(
-                ["copilot", "-p", grader_prompt],
+                grade_command,
                 capture_output=True, text=True, timeout=60, env=env,
             )
             _check_rate_limited(result.stdout + result.stderr)

@@ -192,7 +192,7 @@ Within a single skill, eval cases run sequentially to avoid API rate limits.
 | `node-version` | No | `22` | Node.js version for copilot CLI installation |
 | `max-retries` | No | `3` | Max retry attempts per API call on timeout/error |
 | `retry-delay` | No | `10` | Base delay between retries in seconds (multiplied by attempt number) |
-| `allowed-paths` | No | `` | Comma-separated additional directories to allow via `copilot --add-dir` |
+| `allowed-paths` | No | `` | Comma-separated additional directories to allow via `copilot --add-dir` (do not include `evals/` if prompts must remain hidden) |
 
 ## Outputs
 
@@ -217,7 +217,7 @@ eval YAML -> copilot -p --allow-all-tools [--add-dir ...] (execute) -> copilot -
 6. **Uploads** an interactive eval viewer as an artifact
 7. **Fails** the step if pass rate is below threshold
 
-When `allowed-paths` is provided, each comma-separated path is passed to Copilot as `--add-dir <path>` during both execute and grade calls.
+By default, each case gets an isolated per-case I/O directory populated only with files declared in `files:`. Both execute and grade steps run in that same directory, so judges can inspect generated artifacts while `evals/` stays out of scope. When `allowed-paths` is provided, each comma-separated path is passed to Copilot as `--add-dir <path>` during both execute and grade calls.
 
 ## Eval case format
 

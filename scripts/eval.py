@@ -9,10 +9,8 @@ and sets GitHub Actions outputs.
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -262,14 +260,14 @@ def _parse_output(stdout: str) -> dict:
     }
 
 
-def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
+def execute_case(case: dict, skill_content: str, io_dir: Path, case_dir: Path) -> dict:
     """Run a single eval case via copilot -p with retries."""
     case_dir.mkdir(parents=True, exist_ok=True)
+    io_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create temp dir with any specified files
-    work_dir = Path(tempfile.mkdtemp(prefix=f"eval-{case['name']}-"))
+    # Materialize test files into isolated per-case IO workspace
     for file_spec in case.get("files", []):
-        fp = work_dir / file_spec["path"]
+        fp = io_dir / file_spec["path"]
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.write_text(file_spec.get("content", ""))
 
@@ -287,7 +285,7 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
     start = time.time()
 
     try:
-        result = _run_copilot(prompt, work_dir, case.get("timeout", EVAL_TIMEOUT))
+        result = _run_copilot(prompt, io_dir, case.get("timeout", EVAL_TIMEOUT))
         elapsed = time.time() - start
         parsed = _parse_output(result.stdout)
 
@@ -317,15 +315,13 @@ def execute_case(case: dict, skill_content: str, case_dir: Path) -> dict:
         return {"name": case["name"], "status": "timeout", "elapsed": round(time.time() - start, 1), "tokens": 0, "response": ""}
     except Exception as e:
         return {"name": case["name"], "status": "error", "elapsed": 0, "tokens": 0, "response": "", "error": str(e)}
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
 # Grading
 # ---------------------------------------------------------------------------
 
-def grade_case(case: dict, exec_result: dict, case_dir: Path) -> dict:
+def grade_case(case: dict, exec_result: dict, io_dir: Path, case_dir: Path) -> dict:
     """Grade an executed eval case via copilot -p with retries."""
     criteria = case.get("criteria", [])
     criteria_text = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(criteria))
@@ -357,7 +353,7 @@ Output ONLY valid JSON in this exact format (no markdown, no explanation):
         try:
             result = subprocess.run(
                 grade_command,
-                capture_output=True, text=True, timeout=60, env=env,
+                capture_output=True, text=True, timeout=60, cwd=str(io_dir), env=env,
             )
             _check_rate_limited(result.stdout + result.stderr)
             if result.returncode != 0:
@@ -431,9 +427,10 @@ def main() -> None:
     for i, case in enumerate(cases):
         case_slug = case["name"].replace(" ", "-").lower()
         case_dir = WORKSPACE / case_slug
+        io_dir = case_dir / "io"
         print(f"::group::Execute [{i+1}/{len(cases)}]: {case['name']}")
         try:
-            er = execute_case(case, skill_content, case_dir)
+            er = execute_case(case, skill_content, io_dir, case_dir)
         except RateLimitError as e:
             print("::endgroup::")
             print(f"::error::Rate limited on case '{case['name']}' — aborting: {e}")
@@ -447,6 +444,7 @@ def main() -> None:
     for i, (case, er) in enumerate(zip(cases, exec_results)):
         case_slug = case["name"].replace(" ", "-").lower()
         case_dir = WORKSPACE / case_slug
+        io_dir = case_dir / "io"
         print(f"::group::Grade [{i+1}/{len(cases)}]: {case['name']}")
 
         if er["status"] != "completed":
@@ -459,7 +457,7 @@ def main() -> None:
             print(f"Skipped (execution {er['status']})")
         else:
             try:
-                gr = grade_case(case, er, case_dir)
+                gr = grade_case(case, er, io_dir, case_dir)
             except RateLimitError as e:
                 print("::endgroup::")
                 print(f"::error::Rate limited while grading '{case['name']}' — aborting: {e}")

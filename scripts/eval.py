@@ -281,6 +281,52 @@ def _parse_output(stdout: str) -> dict:
     }
 
 
+def _read_text_file(path: Path, limit: int = 5000) -> str | None:
+    """Read file as text with truncation; skip binary/unreadable files."""
+    try:
+        data = path.read_bytes()
+    except Exception:
+        return None
+
+    if b"\x00" in data[:2048]:
+        return None
+
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text = data.decode("latin-1")
+        except Exception:
+            return None
+
+    if len(text) > limit:
+        return text[:limit] + "\n\n... (truncated) ..."
+    return text
+
+
+def _collect_workspace_artifacts(workspace_dir: Path) -> str:
+    """Collect a deterministic snapshot of workspace files for grading."""
+    max_files = 10
+    artifacts: list[tuple[str, str]] = []
+
+    for p in sorted(workspace_dir.rglob("*")):
+        if len(artifacts) >= max_files:
+            break
+        if not p.is_file():
+            continue
+        content = _read_text_file(p)
+        if content is not None:
+            artifacts.append((str(p.relative_to(workspace_dir)), content))
+
+    if not artifacts:
+        return "(No readable workspace artifacts found)"
+
+    blocks = []
+    for rel, content in artifacts:
+        blocks.append(f"--- FILE: {rel} ---\n{content}")
+    return "\n\n".join(blocks)
+
+
 def _materialize_case_files(case: dict, workspace_dir: Path) -> None:
     """Materialize `files:` entries into workspace_dir.
 
@@ -378,6 +424,7 @@ def grade_case(case: dict, exec_result: dict, workspace_dir: Path, case_dir: Pat
     criteria = case.get("criteria", [])
     criteria_text = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(criteria))
     response = exec_result.get("response", "(No response captured)")
+    workspace_artifacts = _collect_workspace_artifacts(workspace_dir)
 
     if len(response) > 10000:
         response = response[:10000] + "\n\n... (truncated at 10KB) ..."
@@ -389,6 +436,9 @@ CRITERIA:
 
 RESPONSE:
 {response}
+
+WORKSPACE_ARTIFACTS:
+{workspace_artifacts}
 
 Output ONLY valid JSON in this exact format (no markdown, no explanation):
 {{

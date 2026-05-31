@@ -33,6 +33,7 @@ The action runs a **two-stage eval pipeline**: execute (get LLM response) → gr
 **Key design decisions:**
 - Skill content from `SKILL.md` is prepended to prompts for positive trigger cases; negative cases run raw.
 - Grading truncates responses to 10KB; viewer truncates to 5KB.
+- Grading evaluates both response text and sampled workspace artifacts (files created/updated during execution).
 - Cases run sequentially, not in parallel, to stay within API rate limits.
 - If grading fails after retries, all criteria are marked as failed (not silently skipped).
 

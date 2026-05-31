@@ -211,7 +211,7 @@ eval YAML -> copilot -p --allow-all-tools [--add-dir ...] (execute) -> copilot -
 
 1. **Discovers** eval YAML files in `<skill-path>/evals/`
 2. **Executes** each case via `copilot -p --allow-all-tools` with skill content injected
-3. **Grades** each response against criteria via a separate `copilot -p --allow-all-tools` call
+3. **Grades** each case against criteria via a separate `copilot -p --allow-all-tools` call, using both agent response text and sampled files from the case workspace
 4. **Aggregates** results and writes a GitHub Actions step summary
 5. **Posts** a PR comment with pass/fail table and failed criteria details
 6. **Uploads** an interactive eval viewer as an artifact

@@ -9,6 +9,7 @@ and sets GitHub Actions outputs.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -185,17 +186,21 @@ def validate_cases(cases: list[dict]) -> list[str]:
                         "If using a rubric structure, flatten to a list of plain strings."
                     )
 
-        # files — optional, list of dicts with 'path'
+        # files — optional, list of dicts with 'path' and optional 'content'
         files = case.get("files")
         if files is not None:
             if not isinstance(files, list):
-                errors.append(f"{prefix}: 'files' must be a list of {{path, content}} objects")
+                errors.append(f"{prefix}: 'files' must be a list of {{path, content?}} objects")
             else:
                 for i, f in enumerate(files):
                     if not isinstance(f, dict):
                         errors.append(f"{prefix}: files[{i}] must be a mapping with 'path' key")
                     elif "path" not in f:
                         errors.append(f"{prefix}: files[{i}] missing required 'path' key")
+                    elif not isinstance(f["path"], str) or not f["path"].strip():
+                        errors.append(f"{prefix}: files[{i}].path must be a non-empty string")
+                    elif "content" in f and not isinstance(f["content"], str):
+                        errors.append(f"{prefix}: files[{i}].content must be a string when provided")
 
         # expect_skill — optional, bool
         es = case.get("expect_skill")
@@ -260,16 +265,47 @@ def _parse_output(stdout: str) -> dict:
     }
 
 
+def _materialize_case_files(case: dict, io_dir: Path) -> None:
+    """Materialize `files:` entries into io_dir.
+
+    - If `content` is provided, write it to `io_dir/<path>`.
+    - Otherwise copy from an existing source path into `io_dir/<path>`.
+      Source lookup order:
+      1) `<SKILL_PATH>/<path>`
+      2) `<eval_yaml_dir>/<path>`
+    """
+    eval_yaml_dir = Path(case.get("_source", ".")).parent
+    for file_spec in case.get("files", []):
+        rel_path = file_spec["path"].strip()
+        dest = io_dir / rel_path
+
+        if "content" in file_spec:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(file_spec["content"])
+            continue
+
+        source_candidates = [SKILL_PATH / rel_path, eval_yaml_dir / rel_path]
+        source = next((p for p in source_candidates if p.exists()), None)
+        if source is None:
+            raise FileNotFoundError(
+                f"files.path '{rel_path}' not found in {SKILL_PATH} or {eval_yaml_dir}; "
+                "provide files[].content to inline file contents"
+            )
+
+        if source.is_dir():
+            shutil.copytree(source, dest, dirs_exist_ok=True)
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest)
+
+
 def execute_case(case: dict, skill_content: str, io_dir: Path, case_dir: Path) -> dict:
     """Run a single eval case via copilot -p with retries."""
     case_dir.mkdir(parents=True, exist_ok=True)
     io_dir.mkdir(parents=True, exist_ok=True)
 
-    # Materialize test files into isolated per-case IO workspace
-    for file_spec in case.get("files", []):
-        fp = io_dir / file_spec["path"]
-        fp.parent.mkdir(parents=True, exist_ok=True)
-        fp.write_text(file_spec.get("content", ""))
+    # Materialize case files into isolated per-case IO workspace
+    _materialize_case_files(case, io_dir)
 
     # Inject skill content for positive trigger cases (skipped in baseline mode)
     raw_prompt = case.get("prompt", "")

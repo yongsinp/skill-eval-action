@@ -217,7 +217,7 @@ eval YAML -> copilot -p --allow-all-tools [--add-dir ...] (execute) -> copilot -
 6. **Uploads** an interactive eval viewer as an artifact
 7. **Fails** the step if pass rate is below threshold
 
-By default, each case gets an isolated per-case I/O directory populated only with files declared in `files:`. Both execute and grade steps run in that same directory, so judges can inspect generated artifacts while `evals/` stays out of scope. When `allowed-paths` is provided, each comma-separated path is passed to Copilot as `--add-dir <path>` during both execute and grade calls.
+By default, each case gets an isolated per-case I/O directory populated from `files:`. For each `files` entry, if `content` is provided it is written to `path`; otherwise the path is copied into the I/O directory (source lookup: `<skill-path>/<path>`, then `<eval-yaml-dir>/<path>`). Both execute and grade steps run in that same directory, so judges can inspect generated artifacts while `evals/` stays out of scope. When `allowed-paths` is provided, each comma-separated path is passed to Copilot as `--add-dir <path>` during both execute and grade calls.
 
 ## Eval case format
 
@@ -229,8 +229,10 @@ name: Basic usage
 prompt: "The user prompt that should trigger and test this skill"
 files:                          # optional - temp files created before the test
   - path: "main.tf"
+    # Option A: inline file contents
     content: |
       resource "aws_instance" "web" {}
+  - path: "fixtures/project-template"  # Option B: copy existing file/dir into case I/O
 criteria:                       # success criteria - ALL must pass
   - "Output contains a valid resource block"
   - "Uses for_each, not count, for multiple resources"

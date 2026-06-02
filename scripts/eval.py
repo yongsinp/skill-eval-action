@@ -37,7 +37,7 @@ COPILOT_ALLOWED_PATHS = [
     p.strip() for p in os.environ.get("COPILOT_ALLOWED_PATHS", "").split(",") if p.strip()
 ]
 
-_RATE_LIMIT_RE = re.compile(r"rate.?limit|429|too many requests|too many tokens|quota.?exceeded", re.IGNORECASE)
+_RATE_LIMIT_SIGNAL = "litellm.RateLimitError"
 
 
 class RateLimitError(Exception):
@@ -45,7 +45,7 @@ class RateLimitError(Exception):
 
 
 def _check_rate_limited(text: str) -> None:
-    if _RATE_LIMIT_RE.search(text):
+    if _RATE_LIMIT_SIGNAL in text:
         raise RateLimitError(text[:300])
 
 
